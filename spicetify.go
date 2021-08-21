@@ -23,6 +23,7 @@ var (
 	extensionFocus = false
 	appFocus       = false
 	noRestart      = false
+	noControl      = false
 	liveUpdate     = false
 )
 
@@ -81,6 +82,8 @@ func init() {
 			quiet = true
 		case "-n", "--no-restart":
 			noRestart = true
+		case "-r", "--no-control":
+			noControl = true
 		case "-l", "--live-update":
 			liveUpdate = true
 		}
@@ -209,7 +212,11 @@ func main() {
 			restartSpotify()
 
 		case "restart":
-			cmd.RestartSpotify()
+			if !noControl {
+				cmd.RestartSpotify()
+			} else {
+				cmd.RestartNoControl()
+			}
 
 		case "auto":
 			cmd.Auto(version)
@@ -225,7 +232,11 @@ func main() {
 
 func restartSpotify() {
 	if !noRestart {
-		cmd.RestartSpotify()
+		if !noControl {
+			cmd.RestartSpotify()
+		} else {
+			cmd.RestartNoControl()
+		}
 	}
 }
 
@@ -337,6 +348,8 @@ upgrade             Upgrade spicetify latest version
 
 -n, --no-restart    Do not restart Spotify after running command(s), except
                     "restart" command.
+
+-r, --no-control 	Use SpotifyNoControl when restarting.				
 
 -l, --live-update   Use with "watch" command to auto-reload Spotify on change
 
