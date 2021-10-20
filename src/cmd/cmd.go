@@ -14,6 +14,7 @@ import (
 
 var (
 	spicetifyFolder         = utils.GetSpicetifyFolder()
+	ahkFolder				= utils.GetAHKFolder()
 	rawFolder, themedFolder = getExtractFolder()
 	backupFolder            = utils.GetUserFolder("Backup")
 	userThemesFolder        = utils.GetUserFolder("Themes")

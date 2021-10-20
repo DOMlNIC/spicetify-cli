@@ -38,6 +38,20 @@ func GetSpicetifyFolder() string {
 	return result
 }
 
+func GetAHKFolder() string {
+	result, isAvailable := os.LookupEnv("Ahk2Exe")
+	defer func() { CheckExistAndCreate(result) }()
+
+	if isAvailable && len(result) > 0 {
+		return result
+	}
+
+	if runtime.GOOS == "windows" {
+		result = filepath.Join(os.Getenv("ProgramFiles"), "AutoHotkey\\Compiler\\Ahk2Exe.exe")
+	}
+	return result
+}
+
 // getUserFolder checks if folder `name` is available in spicetifyFolder,
 // else creates then returns the path.
 func GetUserFolder(name string) string {

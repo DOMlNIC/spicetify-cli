@@ -61,7 +61,7 @@ func DownloadAHK() {
 		panic(err)
 	}
 
-	err = exec.Command("Ahk2Exe.exe", "/in", dlPath+"SpotifyNoControl.ahk", "/icon", dlPath+"SpotifyNoControl.ico").Run()
+	err = exec.Command("C:\\Program Files\\AutoHotkey\\Compiler\\Ahk2Exe.exe", "/in", dlPath+"SpotifyNoControl.ahk", "/icon", dlPath+"SpotifyNoControl.ico").Run()
 	if err != nil {
 		fmt.Println("AHK Compile Error.")
 		panic(err)
