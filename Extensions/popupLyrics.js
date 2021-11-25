@@ -64,11 +64,12 @@ function PopupLyrics() {
             return result.replace(/\s+/g, " ").trim();
         }
 
-        static removeSongFeat(s) {
+        static removeExtraInfo(s) {
             return (
                 s
                     .replace(/-\s+(feat|with).*/i, "")
                     .replace(/(\(|\[)(feat|with)\.?\s+.*(\)|\])$/i, "")
+                    .replace(/\s-\s.*/, "")
                     .trim() || s
             );
         }
@@ -135,9 +136,9 @@ function PopupLyrics() {
                 }
 
                 const meta = body["matcher.track.get"].message.body;
-
-                const isRestricted = body["track.lyrics.get"].message.body.lyrics.restricted;
                 const hasSynced = meta.track.has_subtitles;
+                const isRestricted =
+                    body["track.lyrics.get"].message.header.status_code === 200 && body["track.lyrics.get"].message.body.lyrics.restricted;
                 const isInstrumental = meta.track.instrumental;
 
                 if (isRestricted) {
@@ -161,13 +162,16 @@ function PopupLyrics() {
         }
 
         static async fetchNetease(info) {
-            const searchURL = `https://music.xianqiao.wang/neteaseapi/search?limit=10&type=1&keywords=`;
-            const lyricURL = `https://music.xianqiao.wang/neteaseapi/lyric?id=`;
+            const searchURL = `https://music.xianqiao.wang/neteaseapiv2/search?limit=10&type=1&keywords=`;
+            const lyricURL = `https://music.xianqiao.wang/neteaseapiv2/lyric?id=`;
+            const requestHeader = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0",
+            };
 
-            const cleanTitle = LyricUtils.removeSongFeat(LyricUtils.normalize(info.title));
+            const cleanTitle = LyricUtils.removeExtraInfo(LyricUtils.normalize(info.title));
             const finalURL = searchURL + encodeURIComponent(`${cleanTitle} ${info.artist}`);
 
-            const searchResults = await CosmosAsync.get(finalURL);
+            const searchResults = await CosmosAsync.get(finalURL, null, requestHeader);
             const items = searchResults.result.songs;
             if (!items || !items.length) {
                 return { error: "Cannot find track" };
@@ -177,7 +181,7 @@ function PopupLyrics() {
             let itemId = items.findIndex((val) => LyricUtils.capitalize(val.album.name) === album);
             if (itemId === -1) itemId = 0;
 
-            const meta = await CosmosAsync.get(lyricURL + items[itemId].id);
+            const meta = await CosmosAsync.get(lyricURL + items[itemId].id, null, requestHeader);
             let lyricStr = meta.lrc;
 
             if (!lyricStr || !lyricStr.lyric) {
@@ -218,7 +222,7 @@ function PopupLyrics() {
                         const [min, sec] = [parseFloat(key), parseFloat(value)];
                         if (!isNaN(min) && !otherInfoRegexp.test(text)) {
                             result.startTime = min * 60 + sec;
-                            result.text = text || "...";
+                            result.text = text || "♪";
                         }
                         return result;
                     });
@@ -320,6 +324,7 @@ function PopupLyrics() {
 
     let lyricVideoIsOpen = false;
     lyricVideo.onenterpictureinpicture = () => {
+        lyricVideo.play();
         lyricVideoIsOpen = true;
         tick(userConfigs);
         updateTrack();

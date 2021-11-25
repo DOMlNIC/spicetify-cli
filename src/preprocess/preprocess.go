@@ -89,7 +89,6 @@ func Start(version string, extractedAppsPath string, flags Flag) {
 		readLocalCssMap(&cssTranslationMap)
 	}
 
-
 	filepath.Walk(appPath, func(path string, info os.FileInfo, err error) error {
 		fileName := info.Name()
 		extension := filepath.Ext(fileName)
@@ -97,7 +96,7 @@ func Start(version string, extractedAppsPath string, flags Flag) {
 		switch extension {
 		case ".js":
 			utils.ModifyFile(path, func(content string) string {
-				if flags.DisableSentry {
+				if flags.DisableSentry && fileName == "vendor~xpui.js" {
 					content = disableSentry(content)
 				}
 
@@ -120,6 +119,9 @@ func Start(version string, extractedAppsPath string, flags Flag) {
 					utils.Replace(&content, k, v)
 				}
 				content = colorVariableReplaceForJS(content)
+
+				// Webpack name changed from v1.1.72
+				utils.Replace(&content, "webpackChunkclient_web", "webpackChunkopen")
 				return content
 			})
 		case ".css":
@@ -146,8 +148,10 @@ func Start(version string, extractedAppsPath string, flags Flag) {
 		case ".html":
 			utils.ModifyFile(path, func(content string) string {
 				var tags string
+				tags += `<link rel="stylesheet" class="userCSS" href="colors.css">` + "\n"
+				tags += `<link rel="stylesheet" class="userCSS" href="user.css">` + "\n"
+
 				if flags.ExposeAPIs {
-					tags += `<link rel="stylesheet" class="userCSS" href="user.css">` + "\n"
 					tags += `<script src="helper/spicetifyWrapper.js"></script>` + "\n"
 					tags += `<!-- spicetify helpers -->` + "\n"
 				}
@@ -227,10 +231,7 @@ func colorVariableReplaceForJS(content string) string {
 }
 
 func disableSentry(input string) string {
-	// utils.Replace(&input, `sentry\.install\(\)[,;]`, "")
-	// TODO Broken hooks
-	//utils.Replace(&input, `;if\(\w+\.type===\w+\.\w+\.LOG_INTERACTION`, ";return${0}")
-	//utils.Replace(&input, `\("https://\w+@sentry.io/\d+"`, `;("https://null@127.0.0.1/0"`)
+	utils.Replace(&input, `prototype\.bindClient=function\(\w+\)\{`, "${0}return;")
 	return input
 }
 
@@ -259,12 +260,6 @@ func removeRTL(input string) string {
 }
 
 func exposeAPIs_main(input string) string {
-	// Player
-	utils.Replace(
-		&input,
-		`this\._cosmos=(\w+),this\._defaultFeatureVersion=\w+`,
-		`(globalThis.Spicetify.Player.origin=this),${0}`)
-
 	// Show Notification
 	utils.Replace(
 		&input,
@@ -287,7 +282,7 @@ func exposeAPIs_main(input string) string {
 	// React Hook
 	utils.ReplaceOnce(
 		&input,
-		`\w+=\(\w+,(\w+)\.lazy\)\(\(\(\)=>Promise\.resolve\(\)\.then\(\w+\.bind\(\w+,\w+\)\)\)\);`,
+		`\w+=\(\w+,(\w+)\.lazy\)\(?\(\(\)=>\w+\.\w+\((?:\d+)?\)\.then\(\w+\.bind\(\w+,\w+\)\)\)\)?;`,
 		`${0}Spicetify.React=${1};`)
 
 	utils.Replace(
@@ -306,9 +301,15 @@ func exposeAPIs_main(input string) string {
 				matches := matchMap.FindStringSubmatch(apiFunc)
 				code += "Spicetify.Platform[\"" + fmt.Sprint(matches[1]) + "\"]=" + fmt.Sprint(matches[2]) + ";"
 			}
-			input = strings.Replace(input, found[0], code + found[0], 1)
+			input = strings.Replace(input, found[0], code+found[0], 1)
 		}
 	}
+
+	// Player
+	utils.Replace(
+		&input,
+		`(Spicetify.Platform\["PlayerAPI"\]=)`,
+		`${1}Spicetify.Player.origin=`)
 
 	// Profile Menu hook v1.1.56
 	utils.Replace(
@@ -521,12 +522,12 @@ type githubRelease = utils.GithubRelease
 
 func splitVersion(version string) ([3]int, error) {
 	vstring := version
-	if(vstring[0:1] == "v") {
+	if vstring[0:1] == "v" {
 		vstring = version[1:]
 	}
 	vSplit := strings.Split(vstring, ".")
 	var vInts [3]int
-	if(len(vSplit) != 3) {
+	if len(vSplit) != 3 {
 		return [3]int{}, errors.New("Invalid version string")
 	}
 	for i := 0; i < 3; i++ {
@@ -553,7 +554,7 @@ func FetchLatestTagMatchingOrMaster(version string) (string, error) {
 		return "", err
 	}
 	// major version matches latest, use master branch
-	if(ver[0] == versionS[0] && ver[1] == versionS[1]) {
+	if ver[0] == versionS[0] && ver[1] == versionS[1] {
 		return "master", nil
 	} else {
 		return FetchLatestTagMatchingVersion(version)
@@ -586,7 +587,7 @@ func FetchLatestTagMatchingVersion(version string) (string, error) {
 	for _, rel := range releases {
 		ver := strings.Split(rel.TagName[1:], ".")
 		if len(ver) != 3 {
-			break;
+			break
 		} else {
 			verMin, err := strconv.Atoi(ver[2])
 			if err != nil {

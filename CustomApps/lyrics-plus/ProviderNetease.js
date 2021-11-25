@@ -1,12 +1,16 @@
 const ProviderNetease = (function () {
-    async function findLyrics(info) {
-        const searchURL = `https://music.xianqiao.wang/neteaseapi/search?limit=10&type=1&keywords=`;
-        const lyricURL = `https://music.xianqiao.wang/neteaseapi/lyric?id=`;
+    const requestHeader = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0",
+    };
 
-        const cleanTitle = Utils.removeSongFeat(Utils.normalize(info.title));
+    async function findLyrics(info) {
+        const searchURL = `https://music.xianqiao.wang/neteaseapiv2/search?limit=10&type=1&keywords=`;
+        const lyricURL = `https://music.xianqiao.wang/neteaseapiv2/lyric?id=`;
+
+        const cleanTitle = Utils.removeExtraInfo(Utils.removeSongFeat(Utils.normalize(info.title)));
         const finalURL = searchURL + encodeURIComponent(`${cleanTitle} ${info.artist}`);
 
-        const searchResults = await CosmosAsync.get(finalURL);
+        const searchResults = await CosmosAsync.get(finalURL, null, requestHeader);
         const items = searchResults.result.songs;
         if (!items?.length) {
             throw "Cannot find track";
@@ -16,7 +20,7 @@ const ProviderNetease = (function () {
         let itemId = items.findIndex((val) => Utils.capitalize(val.album.name) === album);
         if (itemId === -1) itemId = 0;
 
-        return await CosmosAsync.get(lyricURL + items[itemId].id);
+        return await CosmosAsync.get(lyricURL + items[itemId].id, null, requestHeader);
     }
 
     const creditInfo = [
@@ -148,7 +152,7 @@ const ProviderNetease = (function () {
         const lyrics = lines
             .map((line) => {
                 const parsed = parseTimestamp(line);
-                if (!parsed.text) return null;
+                if (!parsed.text || containCredits(parsed.text)) return null;
                 return parsed;
             })
             .filter((a) => a);

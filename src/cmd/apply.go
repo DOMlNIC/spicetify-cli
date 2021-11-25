@@ -74,6 +74,8 @@ func Apply(spicetifyVersion string) {
 		CustomApp:     customAppsList,
 		SidebarConfig: featureSection.Key("sidebar_config").MustBool(false),
 		HomeConfig:    featureSection.Key("home_config").MustBool(false),
+		ExpFeatures:   featureSection.Key("experimental_features").MustBool(false),
+		SpicetifyVer:  backupSection.Key("with").MustString(""),
 	})
 	utils.PrintGreen("OK")
 
@@ -357,7 +359,7 @@ func nodeModuleSymlink() {
 
 	utils.PrintBold(`Found node_modules folder. Creating node_modules symlink:`)
 
-	nodeModuleDest := filepath.Join(appDestPath, "xpui", "node_modules")
+	nodeModuleDest := filepath.Join(appDestPath, "xpui", "extensions", "node_modules")
 	if err = utils.CreateJunction(nodeModulePath, nodeModuleDest); err != nil {
 		utils.PrintError("Cannot create node_modules symlink")
 		return

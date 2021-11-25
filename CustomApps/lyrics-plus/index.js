@@ -43,6 +43,11 @@ const CONFIG = {
         ["inactive-color"]: localStorage.getItem("lyrics-plus:visual:inactive-color") || "rgba(var(--spice-rgb-subtext),0.5)",
         ["highlight-color"]: localStorage.getItem("lyrics-plus:visual:highlight-color") || "var(--spice-button)",
         alignment: localStorage.getItem("lyrics-plus:visual:alignment") || "center",
+        ["lines-before"]: localStorage.getItem("lyrics-plus:visual:lines-before") || "0",
+        ["lines-after"]: localStorage.getItem("lyrics-plus:visual:lines-after") || "2",
+        ["font-size"]: localStorage.getItem("lyrics-plus:visual:font-size") || "32",
+        ["fade-blur"]: getConfig("lyrics-plus:visual:fade-blur"),
+        ["fullscreen-key"]: localStorage.getItem("lyrics-plus:visual:fullscreen-key") || "f12",
     },
     providers: {
         netease: {
@@ -58,7 +63,7 @@ const CONFIG = {
         },
         spotify: {
             on: getConfig("lyrics-plus:provider:spotify:on"),
-            desc: `Lyrics officially provided by Spotify. Only available for some regions/countries' users (e.g., Japan, Vietnam, Thailand).`,
+            desc: `Lyrics sourced from official Spotify API.`,
             modes: [SYNCED, UNSYNCED],
         },
         genius: {
@@ -83,6 +88,9 @@ try {
 }
 
 CONFIG.locked = parseInt(CONFIG.locked);
+CONFIG.visual["lines-before"] = parseInt(CONFIG.visual["lines-before"]);
+CONFIG.visual["lines-after"] = parseInt(CONFIG.visual["lines-after"]);
+CONFIG.visual["font-size"] = parseInt(CONFIG.visual["font-size"]);
 
 const CACHE = {};
 
@@ -94,6 +102,8 @@ const emptyState = {
 };
 
 let lyricContainerUpdate;
+
+const fontSizeLimit = { min: 16, max: 256, step: 4 };
 
 class LyricsContainer extends react.Component {
     constructor() {
@@ -109,16 +119,21 @@ class LyricsContainer extends react.Component {
                 background: "",
                 inactive: "",
             },
+            tempo: "0.25s",
             explicitMode: -1,
             lockMode: CONFIG.locked,
             mode: -1,
             isLoading: false,
             versionIndex: 0,
+            isFullscreen: false,
         };
         this.currentTrackUri = "";
         this.nextTrackUri = "";
         this.availableModes = [];
         this.styleVariables = {};
+        this.fullscreenContainer = document.createElement("div");
+        this.fullscreenContainer.id = "lyrics-fullscreen-container";
+        this.mousetrap = new Spicetify.Mousetrap();
     }
 
     infoFromTrack(track) {
@@ -153,6 +168,25 @@ class LyricsContainer extends react.Component {
         });
     }
 
+    async fetchTempo(uri) {
+        const audio = await Spicetify.CosmosAsync.get(`https://api.spotify.com/v1/audio-features/${uri.split(":")[2]}`);
+        let tempo = audio.tempo;
+
+        const MIN_TEMPO = 60,
+            MAX_TEMPO = 150;
+        const MAX_PERIOD = 0.4;
+        if (!tempo) tempo = 105;
+        if (tempo < MIN_TEMPO) tempo = MIN_TEMPO;
+        if (tempo > MAX_TEMPO) tempo = MAX_TEMPO;
+
+        let period = MAX_PERIOD - ((tempo - MIN_TEMPO) / (MAX_TEMPO - MIN_TEMPO)) * MAX_PERIOD;
+        period = Math.round(period * 100) / 100;
+
+        this.setState({
+            tempo: String(period) + "s",
+        });
+    }
+
     async tryServices(trackInfo, mode = -1) {
         for (const id of CONFIG.providersOrder) {
             const service = CONFIG.providers[id];
@@ -180,6 +214,8 @@ class LyricsContainer extends react.Component {
         if (CONFIG.visual.colorful) {
             this.fetchColors(info.uri);
         }
+
+        this.fetchTempo(info.uri);
 
         if (mode !== -1) {
             if (CACHE[info.uri]?.[CONFIG.modes[mode]]) {
@@ -219,7 +255,14 @@ class LyricsContainer extends react.Component {
             queue = queue.data;
             this.state.explicitMode = this.state.lockMode;
             this.currentTrackUri = queue.current.uri;
-            const nextTrack = queue.nextUp[0];
+
+            let nextTrack;
+            if (queue.queued.length) {
+                nextTrack = queue.queued[0];
+            } else {
+                nextTrack = queue.nextUp[0];
+            }
+
             const nextInfo = this.infoFromTrack(nextTrack);
             if (!nextInfo) {
                 this.fetchLyrics(queue.current, this.state.explicitMode);
@@ -254,11 +297,48 @@ class LyricsContainer extends react.Component {
 
         this.configButton = new Spicetify.Menu.Item("Lyrics Plus config", false, openConfig);
         this.configButton.register();
+
+        this.onFontSizeChange = (event) => {
+            if (!event.ctrlKey) return;
+            let dir = event.deltaY < 0 ? 1 : -1;
+            let temp = CONFIG.visual["font-size"] + dir * fontSizeLimit.step;
+            if (temp < fontSizeLimit.min) {
+                temp = fontSizeLimit.min;
+            } else if (temp > fontSizeLimit.max) {
+                temp = fontSizeLimit.max;
+            }
+            CONFIG.visual["font-size"] = temp;
+            localStorage.setItem("lyrics-plus:visual:font-size", temp);
+            lyricContainerUpdate();
+        };
+        window.addEventListener("mousewheel", this.onFontSizeChange);
+
+        this.toggleFullscreen = () => {
+            const isEnabled = !this.state.isFullscreen;
+            if (isEnabled) {
+                document.body.append(this.fullscreenContainer);
+                document.documentElement.requestFullscreen();
+                this.mousetrap.bind("esc", this.toggleFullscreen);
+            } else {
+                this.fullscreenContainer.remove();
+                document.exitFullscreen();
+                this.mousetrap.unbind("esc");
+            }
+
+            this.setState({
+                isFullscreen: isEnabled,
+            });
+        };
+        this.mousetrap.reset();
+        this.mousetrap.bind(CONFIG.visual["fullscreen-key"], this.toggleFullscreen);
+        window.addEventListener("fad-request", lyricContainerUpdate);
     }
 
     componentWillUnmount() {
         Utils.removeQueueListener(this.onQueueChange);
         this.configButton.deregister();
+        window.removeEventListener("mousewheel", this.onFontSizeChange);
+        this.mousetrap.reset();
     }
 
     updateVisualOnConfigChange() {
@@ -279,7 +359,12 @@ class LyricsContainer extends react.Component {
         this.styleVariables = {
             ...this.styleVariables,
             "--lyrics-align-text": CONFIG.visual.alignment,
+            "--lyrics-font-size": CONFIG.visual["font-size"] + "px",
+            "--animation-tempo": this.state.tempo,
         };
+
+        this.mousetrap.reset();
+        this.mousetrap.bind(CONFIG.visual["fullscreen-key"], this.toggleFullscreen);
     }
 
     render() {
@@ -296,6 +381,8 @@ class LyricsContainer extends react.Component {
         this.styleVariables = {
             ...this.styleVariables,
             "--lyrics-align-text": CONFIG.visual.alignment,
+            "--lyrics-font-size": CONFIG.visual["font-size"] + "px",
+            "--animation-tempo": this.state.tempo,
         };
 
         let mode = -1;
@@ -370,11 +457,15 @@ class LyricsContainer extends react.Component {
         }
 
         this.state.mode = mode;
+        const fadLyricsContainer = document.getElementById("fad-lyrics-plus-container");
 
-        return react.createElement(
+        const out = react.createElement(
             "div",
             {
-                className: "lyrics-lyricsContainer-LyricsContainer",
+                className:
+                    "lyrics-lyricsContainer-LyricsContainer" +
+                    (CONFIG.visual["fade-blur"] ? " blur-enabled" : "") +
+                    (fadLyricsContainer ? " fad-enabled" : ""),
                 style: this.styleVariables,
             },
             react.createElement("div", {
@@ -404,5 +495,13 @@ class LyricsContainer extends react.Component {
                 },
             })
         );
+
+        if (this.state.isFullscreen) {
+            return reactDOM.createPortal(out, this.fullscreenContainer);
+        } else if (fadLyricsContainer) {
+            return reactDOM.createPortal(out, fadLyricsContainer);
+        } else {
+            return out;
+        }
     }
 }
