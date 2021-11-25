@@ -14,7 +14,7 @@ import (
 
 var (
 	spicetifyFolder         = utils.GetSpicetifyFolder()
-	ahkFolder				= utils.GetAHKFolder()
+	ahkFolder               = utils.GetAHKFolder()
 	rawFolder, themedFolder = getExtractFolder()
 	backupFolder            = utils.GetUserFolder("Backup")
 	userThemesFolder        = utils.GetUserFolder("Themes")
@@ -268,3 +268,46 @@ func CheckUpgrade(version string) {
 		utils.PrintWarning(`Run "spicetify upgrade" or using package manager to upgrade spicetify`)
 	}
 }
+
+// func getSpicetifyFolder() string {
+// 	result, isAvailable := os.LookupEnv("SPICETIFY_CONFIG")
+// 	defer func() { utils.CheckExistAndCreate(result) }()
+
+// 	if isAvailable && len(result) > 0 {
+// 		return result
+// 	}
+
+// 	if runtime.GOOS == "windows" {
+// 		result = filepath.Join(os.Getenv("USERPROFILE"), ".spicetify")
+
+// 	} else if runtime.GOOS == "linux" {
+// 		parent, isAvailable := os.LookupEnv("XDG_CONFIG_HOME")
+
+// 		if !isAvailable || len(parent) == 0 {
+// 			parent = filepath.Join(os.Getenv("HOME"), ".config")
+// 			utils.CheckExistAndCreate(parent)
+// 		}
+
+// 		result = filepath.Join(parent, "spicetify")
+
+// 	} else if runtime.GOOS == "darwin" {
+// 		parent, isAvailable := os.LookupEnv("XDG_CONFIG_HOME")
+
+// 		if !isAvailable || len(parent) == 0 {
+// 			parent = os.Getenv("HOME")
+// 		}
+
+// 		result = filepath.Join(parent, "spicetify_data")
+// 	}
+
+// 	return result
+// }
+
+// // getUserFolder checks if folder `name` is available in spicetifyFolder,
+// // else creates then returns the path.
+// func getUserFolder(name string) string {
+// 	dir := filepath.Join(spicetifyFolder, name)
+// 	utils.CheckExistAndCreate(dir)
+
+// 	return dir
+// }

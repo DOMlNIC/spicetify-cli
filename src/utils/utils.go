@@ -291,7 +291,7 @@ func SeekToCloseParen(content string, regexpTerm string, leftChar, rightChar byt
 }
 
 type AppManifest struct {
-	Files []string `json:"subfiles"`
+	Files          []string `json:"subfiles"`
 	ExtensionFiles []string `json:"subfiles_extension"`
 }
 
@@ -299,7 +299,7 @@ func GetAppManifest(app string) (AppManifest, string, error) {
 	customAppPath, err := GetCustomAppPath(app)
 	if err != nil {
 		PrintError(`Custom app "` + app + `" not found.`)
-		return AppManifest{}, customAppPath, err;
+		return AppManifest{}, customAppPath, err
 	}
 	manifestFileContent, err := os.ReadFile(filepath.Join(customAppPath, "manifest.json"))
 	if err != nil {
@@ -307,7 +307,7 @@ func GetAppManifest(app string) (AppManifest, string, error) {
 	}
 	var manifestJson AppManifest
 	if err = json.Unmarshal(manifestFileContent, &manifestJson); err == nil {
-		return manifestJson, customAppPath, err;
+		return manifestJson, customAppPath, err
 	}
-	return manifestJson, customAppPath, err;
+	return manifestJson, customAppPath, err
 }
